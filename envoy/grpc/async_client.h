@@ -100,9 +100,8 @@ public:
   /**
    * Called when trailing metadata is received. This will also be called on non-Ok grpc-status
    * stream termination.
-   * @param metadata trailing metadata reference.
    */
-  virtual void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&& metadata) PURE;
+  virtual void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&&) {}
 };
 
 /**
