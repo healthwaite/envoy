@@ -218,7 +218,8 @@ using HelloworldStreamPtr = std::unique_ptr<HelloworldStream>;
 // Request related test utilities.
 class HelloworldRequest : public MockAsyncRequestCallbacks<helloworld::HelloReply> {
 public:
-  HelloworldRequest(DispatcherHelper& dispatcher_helper) : dispatcher_helper_(dispatcher_helper) {}
+  HelloworldRequest(DispatcherHelper& dispatcher_helper, ClientType client_type)
+      : dispatcher_helper_(dispatcher_helper), client_type_(client_type) {}
 
   void sendReply() {
     fake_stream_->startGrpcStream();
@@ -228,14 +229,36 @@ public:
     EXPECT_CALL(*this, onSuccess_(HelloworldReplyEq(HELLO_REPLY), _)).WillExitIfNeeded();
     EXPECT_CALL(*child_span_, finishSpan());
     dispatcher_helper_.setStreamEventPending();
+
+    TestMetadata trailer_metadata{{Http::LowerCaseString("grpc-status"), "0"}};
+    expectTrailingMetadata(trailer_metadata);
+
     fake_stream_->sendGrpcMessage(reply);
     fake_stream_->finishGrpcStream(Grpc::Status::Ok);
+  }
+
+  void expectTrailingMetadata(const TestMetadata& metadata) {
+    // We've only implemented calling onReceiveTrailingMetadata() for the EnvoyGrpc
+    // client. For the GoogleClient onReceiveTrailingMetadata() is never called and
+    // thus we shouldn't make any expectations on it.
+    if (client_type_ == ClientType::EnvoyGrpc) {
+      EXPECT_CALL(*this, onReceiveTrailingMetadata(_))
+          .WillOnce(Invoke([this, metadata](Http::ResponseTrailerMapPtr&& received_headers) {
+            Http::TestResponseTrailerMapImpl stream_headers(*received_headers);
+            for (auto& value : metadata) {
+              EXPECT_EQ(value.second, stream_headers.get_(value.first));
+            }
+            dispatcher_helper_.exitDispatcherIfNeeded();
+          }));
+      dispatcher_helper_.setStreamEventPending();
+    }
   }
 
   DispatcherHelper& dispatcher_helper_;
   FakeStream* fake_stream_{};
   AsyncRequest* grpc_request_{};
   Tracing::MockSpan* child_span_{new Tracing::MockSpan()};
+  ClientType client_type_;
 };
 
 using HelloworldRequestPtr = std::unique_ptr<HelloworldRequest>;
@@ -366,7 +389,7 @@ public:
   virtual void expectExtraHeaders(FakeStream&) {}
 
   HelloworldRequestPtr createRequest(const TestMetadata& initial_metadata) {
-    auto request = std::make_unique<HelloworldRequest>(dispatcher_helper_);
+    auto request = std::make_unique<HelloworldRequest>(dispatcher_helper_, clientType());
     EXPECT_CALL(*request, onCreateInitialMetadata(_))
         .WillOnce(Invoke([&initial_metadata](Http::HeaderMap& headers) {
           for (const auto& value : initial_metadata) {

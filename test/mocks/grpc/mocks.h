@@ -54,6 +54,7 @@ public:
   MOCK_METHOD(void, onSuccess_, (const ResponseType& response, Tracing::Span& span));
   MOCK_METHOD(void, onFailure,
               (Status::GrpcStatus status, const std::string& message, Tracing::Span& span));
+  MOCK_METHOD(void, onReceiveTrailingMetadata, (Http::ResponseTrailerMapPtr && metadata));
 };
 
 template <class ResponseType>

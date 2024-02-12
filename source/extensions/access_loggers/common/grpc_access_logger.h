@@ -131,6 +131,7 @@ public:
     void onSuccess(Grpc::ResponsePtr<LogResponse>&&, Tracing::Span&) override {}
     void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}
     void onFailure(Grpc::Status::GrpcStatus, const std::string&, Tracing::Span&) override {}
+    void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&&) override {}
   };
 
 private:

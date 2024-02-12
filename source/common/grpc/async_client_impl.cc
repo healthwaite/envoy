@@ -269,7 +269,9 @@ bool AsyncRequestImpl::onReceiveMessageRaw(Buffer::InstancePtr&& response) {
   return true;
 }
 
-void AsyncRequestImpl::onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&&) {}
+void AsyncRequestImpl::onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&& headers) {
+  callbacks_.onReceiveTrailingMetadata(std::move(headers));
+}
 
 void AsyncRequestImpl::onRemoteClose(Grpc::Status::GrpcStatus status, const std::string& message) {
   current_span_->setTag(Tracing::Tags::get().GrpcStatusCode, std::to_string(status));
