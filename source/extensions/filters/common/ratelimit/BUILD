@@ -12,6 +12,7 @@ envoy_cc_library(
     name = "ratelimit_lib",
     srcs = ["ratelimit_impl.cc"],
     hdrs = ["ratelimit_impl.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":ratelimit_client_interface",
         "//envoy/grpc:async_client_interface",
@@ -34,6 +35,7 @@ envoy_cc_library(
     name = "ratelimit_client_interface",
     hdrs = ["ratelimit.h"],
     external_deps = ["abseil_optional"],
+    visibility = ["//visibility:public"],
     deps = [
         "//envoy/ratelimit:ratelimit_interface",
         "//envoy/singleton:manager_interface",

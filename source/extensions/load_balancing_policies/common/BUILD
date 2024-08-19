@@ -22,6 +22,7 @@ envoy_cc_library(
     srcs = ["thread_aware_lb_impl.cc"],
     hdrs = ["thread_aware_lb_impl.h"],
     external_deps = ["abseil_synchronization"],
+    visibility = ["//visibility:public"],
     deps = [
         ":load_balancer_lib",
         "//source/common/common:minimal_logger_lib",

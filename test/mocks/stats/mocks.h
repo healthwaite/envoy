@@ -144,6 +144,7 @@ public:
   MOCK_METHOD(bool, used, (), (const));
   MOCK_METHOD(bool, hidden, (), (const));
   MOCK_METHOD(uint64_t, value, (), (const));
+  MOCK_METHOD(bool, isZeroTwiceOrMoreInARow, (), (const));
 
   bool used_;
   bool hidden_;

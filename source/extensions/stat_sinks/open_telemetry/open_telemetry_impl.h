@@ -42,6 +42,8 @@ public:
   bool emitTagsAsAttributes() { return emit_tags_as_attributes_; }
   bool useTagExtractedName() { return use_tag_extracted_name_; }
   const std::string& statPrefix() { return stat_prefix_; }
+  bool reportCountersAsGauges() { return report_counters_as_gauges_; }
+  const std::string& reportCountersAsGaugesPrefix() { return report_counters_as_gauges_prefix_; }
 
 private:
   const bool report_counters_as_deltas_;
@@ -49,6 +51,8 @@ private:
   const bool emit_tags_as_attributes_;
   const bool use_tag_extracted_name_;
   const std::string stat_prefix_;
+  const bool report_counters_as_gauges_;
+  const std::string report_counters_as_gauges_prefix_;
 };
 
 using OtlpOptionsSharedPtr = std::shared_ptr<OtlpOptions>;
@@ -84,8 +88,9 @@ private:
                   int64_t snapshot_time_ns) const;
 
   template <class CounterType>
-  void flushCounter(opentelemetry::proto::metrics::v1::Metric& metric, const CounterType& counter,
-                    uint64_t value, uint64_t delta, int64_t snapshot_time_ns) const;
+  void flushCounter(opentelemetry::proto::metrics::v1::ScopeMetrics& metrics,
+                    const CounterType& counter, uint64_t value, uint64_t delta,
+                    int64_t snapshot_time_ns, bool is_zero_twice_or_more_in_a_row) const;
 
   void flushHistogram(opentelemetry::proto::metrics::v1::Metric& metric,
                       const Stats::ParentHistogram& parent_histogram,

@@ -97,6 +97,8 @@ const static bool should_log = true;
   FUNCTION(wasm)                                                                                   \
   FUNCTION(websocket)                                                                              \
   FUNCTION(golang)                                                                                 \
+  FUNCTION(akamai_general)                                                                         \
+  FUNCTION(akamai_ingress)                                                                         \
   FUNCTION(stats_sinks)
 
 // clang-format off

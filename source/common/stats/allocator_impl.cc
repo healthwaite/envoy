@@ -157,9 +157,22 @@ public:
     flags_ |= Flags::Used;
   }
   void inc() override { add(1); }
-  uint64_t latch() override { return pending_increment_.exchange(0); }
+  uint64_t latch() override {
+    uint64_t delta = pending_increment_.exchange(0);
+    if (delta == 0) {
+      if (flags_ & Flags::IsZeroOnce) {
+        flags_ |= Flags::IsZeroMoreThanOnce;
+      } else {
+        flags_ |= Flags::IsZeroOnce;
+      }
+    } else {
+      flags_ &= ~(Flags::IsZeroOnce | Flags::IsZeroMoreThanOnce);
+    }
+    return delta;
+  }
   void reset() override { value_ = 0; }
   uint64_t value() const override { return value_; }
+  bool isZeroTwiceOrMoreInARow() const override { return flags_ & Flags::IsZeroMoreThanOnce; }
 
 private:
   std::atomic<uint64_t> value_{0};

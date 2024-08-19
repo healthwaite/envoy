@@ -14,7 +14,9 @@ OtlpOptions::OtlpOptions(const SinkConfig& sink_config)
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(sink_config, emit_tags_as_attributes, true)),
       use_tag_extracted_name_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(sink_config, use_tag_extracted_name, true)),
-      stat_prefix_(!sink_config.prefix().empty() ? sink_config.prefix() + "." : "") {}
+      stat_prefix_(!sink_config.prefix().empty() ? sink_config.prefix() + "." : ""),
+      report_counters_as_gauges_(sink_config.report_counters_as_gauges()),
+      report_counters_as_gauges_prefix_(sink_config.report_counters_as_gauges_prefix()) {}
 
 OpenTelemetryGrpcMetricsExporterImpl::OpenTelemetryGrpcMetricsExporterImpl(
     const OtlpOptionsSharedPtr config, Grpc::RawAsyncClientSharedPtr raw_async_client)
@@ -63,14 +65,15 @@ MetricsExportRequestPtr OtlpMetricsFlusherImpl::flush(Stats::MetricSnapshot& sna
 
   for (const auto& counter : snapshot.counters()) {
     if (predicate_(counter.counter_)) {
-      flushCounter(*scope_metrics->add_metrics(), counter.counter_.get(),
-                   counter.counter_.get().value(), counter.delta_, snapshot_time_ns);
+      flushCounter(*scope_metrics, counter.counter_.get(), counter.counter_.get().value(),
+                   counter.delta_, snapshot_time_ns,
+                   counter.counter_.get().isZeroTwiceOrMoreInARow());
     }
   }
 
   for (const auto& counter : snapshot.hostCounters()) {
-    flushCounter(*scope_metrics->add_metrics(), counter, counter.value(), counter.delta(),
-                 snapshot_time_ns);
+    flushCounter(*scope_metrics, counter, counter.value(), counter.delta(), snapshot_time_ns,
+                 false);
   }
 
   for (const auto& histogram : snapshot.histograms()) {
@@ -94,20 +97,35 @@ void OtlpMetricsFlusherImpl::flushGauge(opentelemetry::proto::metrics::v1::Metri
 }
 
 template <class CounterType>
-void OtlpMetricsFlusherImpl::flushCounter(opentelemetry::proto::metrics::v1::Metric& metric,
+void OtlpMetricsFlusherImpl::flushCounter(opentelemetry::proto::metrics::v1::ScopeMetrics& metrics,
                                           const CounterType& counter, uint64_t value,
-                                          uint64_t delta, int64_t snapshot_time_ns) const {
-  auto* sum = metric.mutable_sum();
-  sum->set_is_monotonic(true);
-  auto* data_point = sum->add_data_points();
-  setMetricCommon(metric, *data_point, snapshot_time_ns, counter);
+                                          uint64_t delta, int64_t snapshot_time_ns,
+                                          bool is_zero_twice_or_more_in_a_row) const {
+  if (config_->reportCountersAsGauges() &&
+      counter.name().starts_with(config_->reportCountersAsGaugesPrefix())) {
+    if (is_zero_twice_or_more_in_a_row) {
+      return;
+    }
+    auto metric = metrics.add_metrics();
+    auto* data_point = metric->mutable_gauge()->add_data_points();
+    data_point->set_time_unix_nano(snapshot_time_ns);
+    setMetricCommon(*metric, *data_point, snapshot_time_ns, counter);
 
-  if (config_->reportCountersAsDeltas()) {
-    sum->set_aggregation_temporality(AggregationTemporality::AGGREGATION_TEMPORALITY_DELTA);
     data_point->set_as_int(delta);
   } else {
-    sum->set_aggregation_temporality(AggregationTemporality::AGGREGATION_TEMPORALITY_CUMULATIVE);
-    data_point->set_as_int(value);
+    auto metric = metrics.add_metrics();
+    auto* sum = metric->mutable_sum();
+    sum->set_is_monotonic(true);
+    auto* data_point = sum->add_data_points();
+    setMetricCommon(*metric, *data_point, snapshot_time_ns, counter);
+
+    if (config_->reportCountersAsDeltas()) {
+      sum->set_aggregation_temporality(AggregationTemporality::AGGREGATION_TEMPORALITY_DELTA);
+      data_point->set_as_int(delta);
+    } else {
+      sum->set_aggregation_temporality(AggregationTemporality::AGGREGATION_TEMPORALITY_CUMULATIVE);
+      data_point->set_as_int(value);
+    }
   }
 }
 

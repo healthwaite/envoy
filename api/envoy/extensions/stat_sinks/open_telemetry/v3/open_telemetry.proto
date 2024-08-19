@@ -19,7 +19,7 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // Stats configuration proto schema for ``envoy.stat_sinks.open_telemetry`` sink.
 // [#extension: envoy.stat_sinks.open_telemetry]
 
-// [#next-free-field: 7]
+// [#next-free-field: 9]
 message SinkConfig {
   oneof protocol_specifier {
     option (validate.required) = true;
@@ -50,4 +50,12 @@ message SinkConfig {
   // "pre", the full stat name will be "pre.foo.bar". If this field is not set, there is no
   // prefix added. According to the example, the full stat name will remain "foo.bar".
   string prefix = 6;
+
+  // Akamai: report the counters that start with report_counters_as_gauges_prefix as gauges
+  // with the value equal to deltas from the previous report.
+  bool report_counters_as_gauges = 7;
+
+  // Akamai: only counters that start with this prefix will be reported as gauges.
+  // Empty string means every counter.
+  string report_counters_as_gauges_prefix = 8;
 }

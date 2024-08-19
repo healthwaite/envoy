@@ -16,6 +16,7 @@ envoy_cc_library(
     name = "local_ratelimit_lib",
     srcs = ["local_ratelimit.cc"],
     hdrs = ["local_ratelimit.h"],
+    visibility = ["//visibility:public"],
     deps = [
         "//envoy/http:codes_interface",
         "//envoy/server:filter_config_interface",

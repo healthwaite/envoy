@@ -108,6 +108,8 @@ public:
     static constexpr uint8_t LogicAccumulate = 0x02;
     static constexpr uint8_t NeverImport = 0x04;
     static constexpr uint8_t Hidden = 0x08;
+    static constexpr uint8_t IsZeroOnce = 0x10;
+    static constexpr uint8_t IsZeroMoreThanOnce = 0x20;
   };
   virtual SymbolTable& symbolTable() PURE;
   virtual const SymbolTable& constSymbolTable() const PURE;
@@ -127,6 +129,7 @@ public:
   virtual uint64_t latch() PURE;
   virtual void reset() PURE;
   virtual uint64_t value() const PURE;
+  virtual bool isZeroTwiceOrMoreInARow() const PURE;
 };
 
 using CounterSharedPtr = RefcountPtr<Counter>;

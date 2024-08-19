@@ -344,8 +344,9 @@ TEST_P(GrpcClientIntegrationTest, BadRequestReplyProtobuf) {
   request->fake_stream_->startGrpcStream();
   EXPECT_CALL(*request->child_span_, setTag(Eq(Tracing::Tags::get().GrpcStatusCode), Eq("0")));
   EXPECT_CALL(*request, onFailure(Status::Internal, "", _)).WillExitIfNeeded();
-  EXPECT_CALL(*request->child_span_, finishSpan());
   dispatcher_helper_.setStreamEventPending();
+  EXPECT_CALL(*request->child_span_, finishSpan());
+  request->expectTrailingMetadata({});
   Buffer::OwnedImpl reply_buffer("\x00\x00\x00\x00\x02\xff\xff", 7);
   Common::prependGrpcFrameHeader(reply_buffer);
   request->fake_stream_->encodeData(reply_buffer, false);
@@ -490,6 +491,10 @@ TEST_P(GrpcClientIntegrationTest, RequestTrailersOnly) {
   EXPECT_CALL(*request, onFailure(Status::Internal, "", _)).WillExitIfNeeded();
   dispatcher_helper_.setStreamEventPending();
   EXPECT_CALL(*request->child_span_, finishSpan());
+
+  TestMetadata trailer_metadata{{Http::LowerCaseString(":status"), "200"},
+                                {Http::LowerCaseString("grpc-status"), "0"}};
+  request->expectTrailingMetadata(trailer_metadata);
   request->fake_stream_->encodeTrailers(reply_headers);
   dispatcher_helper_.runDispatcher();
 }
@@ -722,6 +727,58 @@ TEST_P(GrpcAccessTokenClientIntegrationTest, InvalidCredentialFactory) {
 }
 
 #endif
+
+// Validate that onReceiveTrailingMetadata is called when the RPC succeeds.
+TEST_P(GrpcClientIntegrationTest,
+       AkamaiGrpcRicherError_RequestOnReceiveTrailingMetadataIsCalledWhenRpcSucceeds) {
+  initialize();
+  auto request = createRequest(empty_metadata_);
+
+  request->fake_stream_->startGrpcStream();
+  helloworld::HelloReply reply;
+  reply.set_message(HELLO_REPLY);
+  EXPECT_CALL(*request->child_span_, setTag(Eq(Tracing::Tags::get().GrpcStatusCode), Eq("0")));
+  EXPECT_CALL(*request, onSuccess_(HelloworldReplyEq(HELLO_REPLY), _)).WillExitIfNeeded();
+  EXPECT_CALL(*request->child_span_, finishSpan());
+  request->dispatcher_helper_.setStreamEventPending();
+  request->fake_stream_->sendGrpcMessage(reply);
+
+  const Http::TestResponseTrailerMapImpl reply_trailers{
+      {"grpc-status", "0"}, {"trailer-metadata-key", "trailer-metadata-value"}};
+
+  TestMetadata trailer_metadata{
+      {Http::LowerCaseString("grpc-status"), "0"},
+      {Http::LowerCaseString("trailer-metadata-key"), "trailer-metadata-value"}};
+  request->expectTrailingMetadata(trailer_metadata);
+  request->fake_stream_->encodeTrailers(reply_trailers);
+  dispatcher_helper_.runDispatcher();
+}
+
+// Validate that onReceiveTrailingMetadata is called when the RPC fails.
+TEST_P(GrpcClientIntegrationTest,
+       AkamaiGrpcRicherError_RequestOnReceiveTrailingMetadataIsCalledWhenRpcFails) {
+  initialize();
+  auto request = createRequest(empty_metadata_);
+  auto grpc_status = std::to_string(enumToInt(Status::WellKnownGrpcStatus::Internal));
+  const Http::TestResponseTrailerMapImpl reply_trailers{
+      {":status", "200"},
+      {"grpc-status", grpc_status},
+      {"trailer-metadata-key", "trailer-metadata-value"}};
+  EXPECT_CALL(*request->child_span_,
+              setTag(Eq(Tracing::Tags::get().GrpcStatusCode), Eq(grpc_status)));
+  EXPECT_CALL(*request->child_span_,
+              setTag(Eq(Tracing::Tags::get().Error), Eq(Tracing::Tags::get().True)));
+  EXPECT_CALL(*request, onFailure(Status::Internal, "", _)).WillExitIfNeeded();
+  dispatcher_helper_.setStreamEventPending();
+  EXPECT_CALL(*request->child_span_, finishSpan());
+
+  TestMetadata trailer_metadata{
+      {Http::LowerCaseString("grpc-status"), grpc_status},
+      {Http::LowerCaseString("trailer-metadata-key"), "trailer-metadata-value"}};
+  request->expectTrailingMetadata(trailer_metadata);
+  request->fake_stream_->encodeTrailers(reply_trailers);
+  dispatcher_helper_.runDispatcher();
+}
 
 } // namespace
 } // namespace Grpc

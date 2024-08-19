@@ -111,6 +111,12 @@ public:
    */
   virtual void onFailure(Status::GrpcStatus status, const std::string& message,
                          Tracing::Span& span) PURE;
+  /**
+   * Called when trailing metadata is received. This will also be called on non-Ok grpc-status
+   * stream termination.
+   * @param metadata trailing metadata reference.
+   */
+  virtual void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&& metadata [[maybe_unused]]) {}
 };
 
 /**
